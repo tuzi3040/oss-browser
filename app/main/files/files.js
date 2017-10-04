@@ -71,9 +71,12 @@ angular.module('web')
         //授权
         showGrant: showGrant,
         showGrantToken: showGrantToken,
+        showUserList: showUserList,
         //地址
         showAddress: showAddress,
         showACL: showACL,
+
+        showHttpHeaders: showHttpHeaders,
 
         showRestore: showRestore,
 
@@ -515,6 +518,9 @@ angular.module('web')
                 acl: function () {
                   showACL(item);
                 },
+                httpHeaders: function(){
+                  showHttpHeaders(item);
+                },
                 crc: function () {
                   showCRC(item);
                 }
@@ -875,6 +881,21 @@ angular.module('web')
         });
       }
 
+      function showHttpHeaders(item) {
+        $modal.open({
+          templateUrl: 'main/files/modals/update-http-headers-modal.html',
+          controller: 'updateHttpHeadersModalCtrl',
+          resolve: {
+            item: function () {
+              return angular.copy(item);
+            },
+            currentInfo: function () {
+              return angular.copy($scope.currentInfo);
+            }
+          }
+        });
+      }
+
       function showRestore(item) {
         $modal.open({
           templateUrl: 'main/files/modals/restore-modal.html',
@@ -895,6 +916,15 @@ angular.module('web')
               };
             }
           }
+        });
+      }
+
+      function showUserList(){
+        $modal.open({
+          templateUrl: 'main/modals/users.html',
+          controller: 'usersCtrl',
+          size: 'lg',
+          backdrop: 'static'
         });
       }
 

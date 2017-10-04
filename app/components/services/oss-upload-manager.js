@@ -189,7 +189,17 @@ angular.module('web')
           }
 
           var fileName = path.basename(absPath);
-          var filePath = path.join(bucketInfo.key, path.relative(dirPath, absPath)).replace(/\\/g, '/');
+
+          var filePath = path.relative(dirPath, absPath);
+
+          if(path.sep!='/'){
+            //修复window下 \ 问题
+            filePath = filePath.replace(/\\/g, '/')
+          }
+
+          //修复window下 \ 问题
+          filePath = bucketInfo.key ? (bucketInfo.key.replace(/(\/*$)/g, '') +'/'+ filePath ) : filePath;
+
 
           if (fs.statSync(absPath).isDirectory()) {
             //创建目录
@@ -235,6 +245,7 @@ angular.module('web')
                 key: filePath
               }
             });
+
             addEvents(job);
 
             $timeout(function(){
@@ -267,7 +278,7 @@ angular.module('web')
                 SecurityToken: auth.stoken
               }
             },
-            endpoint: ossSvs2.getOssEndpoint(opt.region, opt.to.bucket)
+            endpoint: ossSvs2.getOssEndpoint(opt.region, opt.to.bucket, auth.eptpl)
           });
         }
         else{
@@ -276,10 +287,9 @@ angular.module('web')
               accessKeyId: auth.id,
               secretAccessKey: auth.secret
             },
-            endpoint: ossSvs2.getOssEndpoint(opt.region, opt.to.bucket)
+            endpoint: ossSvs2.getOssEndpoint(opt.region, opt.to.bucket, auth.eptpl)
           });
         }
-
         return store.createUploadJob(opt);
         // {
         //   region: opt.region,

@@ -14,8 +14,9 @@ angular.module('web')
         restoreFile: restoreFile,
         loadStorageStatus: loadStorageStatus,
 
-        getMeta: getFileInfo,
-        getFileInfo: getFileInfo, //head object
+        getMeta: getMeta,
+        getFileInfo: getMeta, //head object
+        setMeta: setMeta,
 
         checkFileExists: checkFileExists,
         checkFolderExists: checkFolderExists,
@@ -358,6 +359,7 @@ angular.module('web')
                   n.size = n.Size;
                   n.storageClass = n.StorageClass;
                   n.type = n.Type;
+                  n.lastModified = n.LastModified;
                   n.url = getOssUrl(region, opt.Bucket, n.Key);
 
                   objs.push(n);
@@ -738,18 +740,45 @@ angular.module('web')
             region: region,
             bucket: bucket
           });
-          client.putObject({
+
+
+          client.headObject({
             Bucket: bucket,
-            Key: key,
-            Body: content
-          }, function (err) {
+            Key: key
+          }, function (err, result) {
+
             if (err) {
               handleError(err);
               b(err);
             } else {
-              a();
+
+
+              client.putObject({
+                Bucket: bucket,
+                Key: key,
+                Body: content,
+
+                //保留http头
+                'ContentLanguage': result.ContentLanguage,
+                'ContentType': result.ContentType,
+                'CacheControl': result.CacheControl,
+                'ContentDisposition': result.ContentDisposition,
+                'ContentEncoding': '',
+                'Expires': result.Expires,
+                'Metadata': result.Metadata
+
+              }, function (err) {
+                if (err) {
+                  handleError(err);
+                  b(err);
+                } else {
+                  a();
+                }
+              });
+
             }
           });
+
         });
       }
 
@@ -786,7 +815,7 @@ angular.module('web')
         });
       }
 
-      function getFileInfo(region, bucket, key) {
+      function getMeta(region, bucket, key) {
         return new Promise(function (a, b) {
           var client = getClient({
             region: region,
@@ -797,6 +826,38 @@ angular.module('web')
             Key: key
           };
           client.headObject(opt, function (err, data) {
+
+            if (err) {
+              handleError(err);
+              b(err);
+            } else {
+              a(data);
+            }
+          });
+        });
+      }
+      function setMeta(region, bucket, key, headers, metas) {
+        return new Promise(function (a, b) {
+          var client = getClient({
+            region: region,
+            bucket: bucket
+          });
+          var opt = {
+            Bucket: bucket,
+            Key: key,
+            CopySource: '/'+bucket+'/'+encodeURIComponent(key),
+            MetadataDirective: 'REPLACE', //覆盖meta
+
+            Metadata: metas || {},
+
+            ContentType: headers['ContentType'],
+            CacheControl: headers['CacheControl'],
+            ContentDisposition: headers['ContentDisposition'],
+            ContentEncoding: '',//headers['ContentEncoding'],
+            ContentLanguage:headers['ContentLanguage'],
+            Expires: headers['Expires'],
+          };
+          client.copyObject(opt, function (err, data) {
 
             if (err) {
               handleError(err);
@@ -869,7 +930,7 @@ angular.module('web')
                  return;
                }
 
-               getFileInfo(region, bucket, item.path).then(function(data){
+               getMeta(region, bucket, item.path).then(function(data){
                   if (data.Restore) {
                     var info = parseRestoreInfo(data.Restore);
                     if (info['ongoing-request'] == 'true') {
@@ -948,6 +1009,7 @@ angular.module('web')
                   n.size = n.Size;
                   n.storageClass = n.StorageClass;
                   n.type = n.Type;
+                  n.lastModified = n.LastModified;
                   n.url =  getOssUrl(region, opt.Bucket, n.Key);
 
                   t.push(n);
@@ -1046,6 +1108,7 @@ angular.module('web')
                   n.size = n.Size;
                   n.storageClass = n.StorageClass;
                   n.type = n.Type;
+                  n.lastModified = n.LastModified;
                   n.url = getOssUrl(region, opt.Bucket, n.Key);
 
                   t.push(n);
@@ -1096,6 +1159,7 @@ angular.module('web')
                   n.extranetEndpoint = n.ExtranetEndpoint;
                   n.intranetEndpoint = n.IntranetEndpoint;
                   n.storageClass = n.StorageClass;
+                  n.lastModified = n.LastModified;
 
                   n.isBucket = true;
                   n.itemType = 'bucket';
@@ -1164,7 +1228,7 @@ angular.module('web')
           }
         }
 
-        var endpoint = getOssEndpoint(authInfo.region || 'oss-cn-beijing', bucket);
+        var endpoint = getOssEndpoint(authInfo.region || 'oss-cn-beijing', bucket, authInfo.eptpl);
         var options = {
           accessKeyId: authInfo.id || 'a',
           secretAccessKey: authInfo.secret || 'a',
@@ -1202,6 +1266,8 @@ angular.module('web')
 
 
       function getOssUrl(region, bucket, key){
+        //eptpl = eptpl || AuthInfo.get().eptpl || 'http://{region}.aliyuncs.com';
+
         var isHttps = Global.ossEndpointProtocol == 'https:';
 
 
@@ -1229,7 +1295,15 @@ angular.module('web')
 
       }
 
-      function getOssEndpoint(region, bucket) {
+      function getOssEndpoint(region, bucket, eptpl) {
+        eptpl = eptpl || AuthInfo.get().eptpl || 'http://{region}.aliyuncs.com';
+
+        eptpl = eptpl.replace('{region}',region);
+        console.log('-->',eptpl)
+        return eptpl;
+
+        //-------------------------
+
         var isHttps = Global.ossEndpointProtocol == 'https:';
         //通过bucket获取endpoint
         if (bucket && $rootScope.bucketMap && $rootScope.bucketMap[bucket]) {

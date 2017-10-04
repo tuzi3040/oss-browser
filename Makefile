@@ -1,7 +1,7 @@
 ELECTRON_MIRROR=http://npm.taobao.org/mirrors/electron/
-ELECTRON_VERSION=1.6.11
-BUILD=ELECTRON_MIRROR=$(ELECTRON_MIRROR) electron-packager ./dist --overwrite --out=build --version $(ELECTRON_VERSION)
-VERSION=1.1.0
+ELECTRON_VERSION=1.7.5
+BUILD=ELECTRON_MIRROR=$(ELECTRON_MIRROR) electron-packager ./dist --asar --overwrite --out=build --version $(ELECTRON_VERSION)
+VERSION=1.2.3
 NAME=oss-browser
 
 i:
@@ -22,8 +22,6 @@ watch:
 	npm run watch
 build:
 	npm run build
-
-
 
 win64:
 	$(BUILD) --platform=win32 --arch=x64
