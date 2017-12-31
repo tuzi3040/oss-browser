@@ -3,6 +3,8 @@ module.exports = {
   'language': '语言',
   'name': "名称",
   'type': '类型',
+  'customize': '自定义',
+  'public.cloud': '公有云',
 
   'region.oss-cn-hangzhou': '华东1(杭州)',
   'region.oss-cn-shanghai': '华东2(上海)',
@@ -21,14 +23,19 @@ module.exports = {
   'region.oss-eu-central-1': '欧洲中部1(法兰克福)',
   'region.oss-me-east-1': '中东东部1(迪拜)',
 
+  'optional': '可选',
+  'default': '默认',
   'auth.akLogin': 'AK登录',
   'auth.tokenLogin': '授权码登录',
-  'auth.presetOssPath': '预设OSS路径(可选)',
+  'auth.presetOssPath': '预设OSS路径',
   'auth.presetOssPath.placeholder': '可选,格式如: oss://bucket/key/',
   'auth.id.placeholder': '请输入AccessKeyId',
   'auth.secret.placeholder': '请输入AccessKeySecret',
   'auth.eptpl': 'Endpoint模板',
   'auth.eptpl.placeholder': '默认: http://{region}.aliyuncs.com',
+
+  'auth.eptpl.popup.msg1': '公有云直接使用默认即可',
+  'auth.eptpl.popup.msg2': '专有云请输入自定义Endpoint,如:',
 
   'region': '区域',
   'auth.region.placeholder': '可选',
@@ -56,7 +63,7 @@ module.exports = {
   'close': '关闭',
 
   'auth.removeAK.title': '删除AK',
-  'auth.removeAK.message': 'ID：{{id}}, 确定删除?',
+  'auth.removeAK.message': 'ID：<code>{{id}}</code>, 确定删除?',
 
   'auth.clearAKHistories.title': '清空AK历史',
   'auth.clearAKHistories.message': '确定?',
@@ -135,9 +142,9 @@ module.exports = {
   'simplePolicy.title': '简化Policy授权',
   'simplePolicy.lb1.1': '将下列资源',
   'simplePolicy.lb1.2': '的权限',
-  'privilege.readonly': '只读权限',
-  'privilege.readwrite': '读写权限',
-  'privilege.all': '读写权限',
+  'privilege.readonly': '只读',
+  'privilege.readwrite': '读写',
+  'privilege.all': '读写',
   'simplePolicy.lb3.1': '查看Policy',
   'simplePolicy.lb3.2': '隐藏Policy',
   'simplePolicy.lb4': '创建为policy，命名为',
@@ -241,7 +248,7 @@ module.exports = {
   'deleteModal.message2': '用户取消删除',
   'deleteModal.message3': '部分目录或文件无法删除',
 
-  'paste.message1': '将 <span class="text-info">{{name}}等</span> {{action}} 到这个目录下面（如有相同的文件或目录则覆盖）？',
+  'paste.message1': '将 <span class="text-info">{{name}}等</span> <span class="text-info">{{action}}</span> 到这个目录下面（如有相同的文件或目录则覆盖）？',
 
   'acl.update.title': '设置ACL权限',
   'acl.update.success': '修改ACL权限成功',
@@ -309,6 +316,7 @@ module.exports = {
   'status.failed': '失败',
   'status.finished': '完成',
   'status.waiting': '等待',
+  'status.verifying': '正在校验',
 
   'users': '子用户',
   'users.title': '子用户管理',
@@ -386,7 +394,19 @@ module.exports = {
   'send.to': '发送到',
   'send.email': '发送邮件',
   'send.now': '立即发送',
+  'file.download.address': '文件下载地址',
 
+  'copy.successfully': '已复制到剪贴板',
+  'click.download': '点此下载',
+  'qrcode.download': '扫码下载',
+
+  'saving': '正在保存',
+  'save.successfully': '保存成功',
+  'content.isnot.modified': '内容没有修改',
+
+  'logining': '正在登录中...',
+  'login.successfully': '登录成功，正在跳转...',
+  'login.endpoint.error': '请确定Endpoint是否正确',
 
 
 }

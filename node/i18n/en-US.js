@@ -3,6 +3,8 @@ module.exports = {
   'language': 'Language',
   'name': 'Name',
   'type': 'Type',
+  'customize': 'Customize',
+  'public.cloud': 'Public Cloud',
 
   'region.oss-cn-hangzhou': 'East China 1(Hangzhou)',
   'region.oss-cn-shanghai': 'East China 2(Shanghai)',
@@ -21,6 +23,8 @@ module.exports = {
   'region.oss-eu-central-1': 'Central Europe 1(Frankfurt)',
   'region.oss-me-east-1': 'Middle East East 1(Dubai)',
 
+  'optional': 'Optional',
+  'default': 'Default',
   'auth.akLogin': 'AK Login',
   'auth.tokenLogin': 'Token Login',
   'auth.presetOssPath': 'Preset OSS Path',
@@ -29,6 +33,9 @@ module.exports = {
   'auth.secret.placeholder': 'AccessKeySecret',
   'auth.eptpl': 'Endpoint Template',
   'auth.eptpl.placeholder': 'Default: http://{region}.aliyuncs.com',
+
+  'auth.eptpl.popup.msg1': 'For Public Cloud, you can directly use the default settings',
+  'auth.eptpl.popup.msg2': 'For Private Cloud, Please enter a custom Endpoint, such as:',
 
   'region': 'Region',
   'auth.region.placeholder': 'Optional',
@@ -56,7 +63,7 @@ module.exports = {
   'close': 'Close',
 
   'auth.removeAK.title': 'Remove AK',
-  'auth.removeAK.message': 'Remove AK：{{id}}, Are you sure?',
+  'auth.removeAK.message': 'Remove AK：<code>{{id}}</code>, Are you sure?',
 
   'auth.clearAKHistories.title': 'Clear AK Histories',
   'auth.clearAKHistories.message': 'Are you sure?',
@@ -227,10 +234,10 @@ module.exports = {
   'unit.second': 's',
 
   'genAuthToken.message3.1': 'You also need to specify a role',
-  'genAuthToken.message3.2': 'This role requires at least {{privilege}} access to this {{type}}',
+  'genAuthToken.message3.2': 'This role requires at least {{privilege}} permission to access this {{type}}',
 
   'genAuthToken.message4': 'Authorization Token',
-  'genAuthToken.message5': 'Log in to the OSS browser using the generated authorization code above, You can get {{privilege}} access to this {{type}} [{{object}}], Valid until {{expiration}}.',
+  'genAuthToken.message5': 'Log in to the OSS browser using the generated authorization code above, You can get {{privilege}} permission to access this {{type}} [{{object}}], Valid until {{expiration}}.',
   'genAuthToken.message6.1': 'Generate',
   'genAuthToken.message6.2': 'Re-Generate',
 
@@ -241,7 +248,7 @@ module.exports = {
   'deleteModal.message2': 'Has been cancelled',
   'deleteModal.message3': 'Some directories or files can not be deleted',
 
-  'paste.message1': '{{action}} <span class="text-info">{{name}}...</span> to this directory (The same file or directory will be covered)？',
+  'paste.message1': '<span class="text-info">{{action}}</span> <span class="text-info">{{name}}...</span> to this directory (The same file or directory will be covered)？',
 
   'acl.update.title': 'Update ACL',
   'acl.update.success': 'ACL Updated successfully',
@@ -309,6 +316,7 @@ module.exports = {
   'status.failed': 'Failed',
   'status.finished': 'Finished',
   'status.waiting': 'Waiting',
+  'status.verifying': 'Verifying',
 
   'users': 'Sub Users',
   'users.title': 'Sub Users',
@@ -386,5 +394,17 @@ module.exports = {
   'send.to': 'Mail to',
   'send.email': 'Mail it',
   'send.now': 'Send',
+  'file.download.address': 'file download address',
 
+  'copy.successfully': 'It has been copied to the clipboard',
+  'click.download': 'click to download',
+  'qrcode.download': 'scan qrcode to download',
+
+  'saving': 'Saving',
+  'save.successfully': 'Saved',
+  'content.isnot.modified': 'The content is not modified',
+
+  'logining': 'Logging in ...',
+  'login.successfully': 'Login successful, jumping ...',
+  'login.endpoint.error': 'Please make sure Endpoint is correct',
 }

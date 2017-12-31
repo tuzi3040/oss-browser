@@ -2,12 +2,38 @@ var gulp = require('gulp');
 var plugins = require("gulp-load-plugins")({lazy: false});
 var fs = require('fs');
 var path = require('path');
-
+var os =require('os');
+var minimist = require('minimist')
 //var NwBuilder = require('nw-builder');
 //var pkg = require('./package');
 require('shelljs/global');
 
 var DIST = './dist';
+
+function getCustomPath(){
+  var minimist = require('minimist');
+
+  var knownOptions = {
+    string: 'custom',
+    default: { custom: './custom' }
+  };
+
+  var options = minimist(process.argv.slice(2), knownOptions);
+
+  if(options && options.custom){
+    var customPath = path.join(options.custom,'**/*');
+
+    if(customPath.indexOf('~')==0){
+      customPath= path.join(os.homedir(), customPath, '**/*');
+    }
+    else if(customPath.indexOf('.')==0){
+      customPath= path.join(__dirname, customPath, '**/*');
+    }
+  }
+  return customPath||'custom/**/*';
+}
+
+
 //var VERSION = pkg.version;
 var taskFns = {
   appJS: function () {
@@ -89,6 +115,8 @@ gulp.task('libJS', function () {
 
       './node_modules/angular-translate/dist/angular-translate.min.js',
 
+      './node_modules/angular-bootstrap-contextmenu/contextMenu.js'
+
     ];
 
     // code mirror modes
@@ -142,6 +170,13 @@ gulp.task('copy-static', function () {
     .pipe(gulp.dest(DIST+'/static'));
 });
 
+
+gulp.task('copy-custom', function () {
+
+  gulp.src([getCustomPath()])
+    .pipe(gulp.dest(DIST+'/custom'));
+});
+
 gulp.task('copy-index', function () {
   gulp.src(['./app/index.html',
   './main.js',
@@ -155,9 +190,20 @@ gulp.task('gen-package', function () {
   gulp.src(['./package.json'])
   .on('end', function(){
     var info = require('./package');
+
     delete info.devDependencies;
-    delete info.scripts;
+    info.scripts = {
+      'start': 'electron .'
+    };
     info.main="main.js";
+
+    var custom = {};
+    try{ custom = require('./custom') }catch(e){}
+    if(custom.appId){
+      info.name= custom.appId;
+      info.version = custom.version;
+    }
+
     try{ fs.statSync(DIST); }catch(e){ fs.mkdirSync(DIST); }
     fs.writeFileSync(DIST+'/package.json', JSON.stringify(info,' ',2));
     exec('cd dist && cnpm i');
@@ -193,6 +239,8 @@ gulp.task('watch', function () {
 
   gulp.watch(['./static/**'], ['copy-static']);
 
+  gulp.watch(['./custom/**'], ['copy-custom']);
+
   gulp.watch('./node/**', ['copy-node']);
 
 });
@@ -203,6 +251,6 @@ gulp.task('watch', function () {
 //   livereload: true
 // }));
 
-gulp.task('build', ['js', 'templates', 'css', 'copy-index', 'libJS', 'libCSS', 'copy-fonts','copy-node','copy-docs','copy-icons','copy-static','gen-package']);
+gulp.task('build', ['js', 'templates', 'css', 'copy-index', 'libJS', 'libCSS', 'copy-fonts','copy-node','copy-docs','copy-icons','copy-custom','copy-static','gen-package']);
 
 gulp.task('default', [  'build', 'watch']);

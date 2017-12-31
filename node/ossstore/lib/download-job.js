@@ -16,6 +16,7 @@ class DownloadJob extends Base {
    *    config.checkPoint
    *
    *    config.chunkSize
+   *    config.enableCrc64
    */
   constructor(ossClient, config) {
     super();
@@ -48,6 +49,7 @@ class DownloadJob extends Base {
     this.stopFlag = this.status != 'running';
 
     this.checkPoints = this._config.checkPoints;
+    this.enableCrc64 = this._config.enableCrc64;
 
     //console.log('created download job');
 
@@ -124,7 +126,7 @@ DownloadJob.prototype._changeStatus = function (status) {
 DownloadJob.prototype.startSpeedCounter = function () {
   var self = this;
 
-  self.lastLoaded = 0;
+  self.lastLoaded =self.prog.loaded|| 0;
   var tick=0;
   clearInterval(self.speedTid);
   self.speedTid = setInterval(function () {
@@ -145,7 +147,7 @@ DownloadJob.prototype.startSpeedCounter = function () {
     tick++;
     if(tick>5){
       tick=0;
-      self.maxConcurrency = util.computeMaxConcurrency(self.speed);
+      self.maxConcurrency = util.computeMaxConcurrency(self.speed, self.chunkSize);
       console.log('max concurrency:', self.maxConcurrency);
     }
   }, 1000);
@@ -200,7 +202,6 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
       self.emit('error', err);
       return;
     }
-    //console.log(headers)
 
     fileMd5 = headers.ContentMD5;//.replace(/(^\"*)|(\"*$)/g, '');
     //console.log('file md5:',fileMd5);
@@ -231,6 +232,8 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
             done: 0
           });
           self.emit('complete');
+          console.log('download: '+self.to.path+' %celapse','background:green;color:white',self.endTime-self.startTime,'ms')
+
         }
       });
       return;
@@ -240,7 +243,10 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
       return;
     }
 
+
     chunkSize = checkPoints.chunkSize || self._config.chunkSize || util.getSensibleChunkSize(self.prog.total);
+
+    self.chunkSize=chunkSize;
 
     console.log('chunkSize:',chunkSize);
 
@@ -268,10 +274,10 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
       for (var k in checkPoints.Parts) {
         self.prog.loaded += checkPoints.Parts[k].loaded;
       }
-
-      checkFileHash(tmpName, fileMd5, hashCrc64ecma, function (err) {
+      self._changeStatus('verifying');
+      util.checkFileHash(tmpName,  hashCrc64ecma , fileMd5,  function (err) {
         if (err) {
-          self.message="failed to check crc64:"+ (err.message||err);
+          self.message=(err.message||err);
           console.error(self.message, self.to.path);
           self._changeStatus('failed');
           self.emit('error', err);
@@ -291,6 +297,7 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
               done: chunkNum
             });
             self.emit('complete');
+            console.log('download: '+self.to.path+' %celapse','background:green;color:white',self.endTime-self.startTime,'ms')
           }
         });
       });
@@ -386,7 +393,7 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
             console.warn('用户取消');
             return;
           }
- 
+
           if (retryCount < maxRetries && err.code!='InvalidObjectState' ) {
             retryCount++;
             console.log(`retry download part [${n}] error:${err}, ${self.to.path}`);
@@ -441,9 +448,10 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
             //下载完成
             //util.closeFD(keepFd);
             //检验MD5
-            checkFileHash(tmpName, fileMd5, hashCrc64ecma, function (err) {
+            self._changeStatus('verifying');
+            util.checkFileHash(tmpName,  hashCrc64ecma, fileMd5, function (err) {
               if (err) {
-                self.message = 'failed to check crc64:'+ (err.message||err);
+                self.message = (err.message||err);
                 console.error(self.message, self.to.path);
                 self._changeStatus('failed');
                 self.emit('error', err);
@@ -463,6 +471,7 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
                     done: completedCount
                   }, checkPoints);
                   self.emit('complete');
+                  console.log('download: '+self.to.path+' %celapse','background:green;color:white',self.endTime-self.startTime,'ms')
                 }
 
               });
@@ -516,39 +525,7 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
     return chunks.length > 0;
   }
 
-  function checkFileHash(tmpName, fileMd5, hashCrc64ecma, fn) {
-    console.time(`check crc64 ${tmpName}`);
-    if(hashCrc64ecma){
-      util.getFileCrc64(tmpName, function(err, crc64Str){
-        console.timeEnd(`check crc64 ${tmpName}`);
-        if (err) {
-          fn(new Error('Checking file['+tmpName+'] crc64 hash failed: ' + err.message));
-        } else if (crc64Str!=null && crc64Str != hashCrc64ecma) {
-          fn(new Error('HashCrc64ecma mismatch, file['+tmpName+'] crc64 hash should be:'+hashCrc64ecma+', but we got:'+crc64Str));
-        } else{
-          console.info('check crc success: file['+tmpName+']')
-          fn(null);
-        }
-      });
-    }
-    else if(fileMd5){
 
-      //检验MD5
-      util.getBigFileMd5(tmpName, function (err, md5str) {
-        if (err) {
-          fn(new Error('Checking md5 failed: ' + err.message));
-        } else if (md5str != fileMd5) {
-          fn(new Error('MD5 mismatch, file md5 should be:'+fileMd5+', but we got:'+md5str));
-        } else fn(null);
-      });
-    }
-    else{
-      //没有MD5，不校验
-      console.log(tmpName,',not found content md5, just pass');
-      fn(null);
-      return;
-    }
-  }
 
   function writeFileRange(tmpName, data, start, fn) {
     var file = fs.createWriteStream(tmpName, {

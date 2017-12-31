@@ -264,7 +264,6 @@ angular.module('web')
           endpoint: ossSvs2.getOssEndpoint(opt.region, opt.from.bucket, auth.eptpl)
         });
       }
-
       return store.createDownloadJob(opt);
     }
 
@@ -290,7 +289,7 @@ angular.module('web')
         });
         //console.log('save:', t);
 
-        fs.writeFileSync(getDownProgFilePath(), JSON.stringify(t, ' ', 2));
+        fs.writeFileSync(getDownProgFilePath(), JSON.stringify(t));
         $scope.calcTotalProg();
       },20);
     }
@@ -301,10 +300,11 @@ angular.module('web')
     function loadProg() {
       try {
         var data = fs.readFileSync(getDownProgFilePath());
+        return JSON.parse(data ? data.toString() : '[]');
       } catch (e) {
 
       }
-      return JSON.parse(data ? data.toString() : '[]');
+      return [];
     }
 
     //下载进度保存路径

@@ -3,7 +3,8 @@ angular.module('web', ['ui.router',
     'ui.codemirror',
     'pascalprecht.translate',
     'ngSanitize',
-    'templates'
+    'templates',
+    'ui.bootstrap.contextMenu'
   ])
   .config(['$stateProvider', '$urlRouterProvider', '$translateProvider',
     function ($stateProvider, $urlRouterProvider, $translateProvider) {
@@ -29,12 +30,14 @@ angular.module('web', ['ui.router',
         $translateProvider.translations(k, Global.i18n[k].content);
       }
       $translateProvider.preferredLanguage('zh-CN');
+
+      $translateProvider.useSanitizeValueStrategy('escapeParameters');
     }
   ])
   .run(['$rootScope', '$translate', 'Toast', function ($rootScope, $translate, Toast) {
     $rootScope.openURL = function(url){
       openExternal(url);
-    }
+    };
 
     // //i18n
     var langMap = {};
@@ -52,7 +55,7 @@ angular.module('web', ['ui.router',
       langList: langList,
       lang: lang,
       changeLanguage: function (key) {
-        console.log('changeLanguage:', key)
+        console.log('changeLanguage:', key);
         key = langMap[key] ? key : langList[0].lang;
         $translate.use(key);
         localStorage.setItem('lang', key);

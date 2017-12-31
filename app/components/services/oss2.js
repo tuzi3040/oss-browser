@@ -27,6 +27,7 @@ angular.module('web')
         listFiles: listFiles,
         getContent: getContent,
         saveContent: saveContent,
+        getImageBase64Url: getImageBase64Url,
 
         //重命名
         moveFile: moveFile,
@@ -714,6 +715,25 @@ angular.module('web')
         });
       }
 
+      function getImageBase64Url(region, bucket, key) {
+        return new Promise(function (a, b) {
+          var client = getClient({
+            region: region,
+            bucket: bucket
+          });
+          client.getObject({
+            Bucket: bucket,
+            Key: key
+          }, function (err, data) {
+            if (err) {
+              handleError(err);
+              b(err);
+            } else {
+              a(data);
+            }
+          });
+        });
+      }
       function getContent(region, bucket, key) {
         return new Promise(function (a, b) {
           var client = getClient({
@@ -1142,8 +1162,9 @@ angular.module('web')
           _dig();
 
           function _dig() {
-
+            //opt.MaxKeys=50
             client.listBuckets(opt, function (err, result) {
+              //console.log(opt, err, result)
               if (err) {
                 handleError(err);
                 reject(err);
@@ -1166,6 +1187,8 @@ angular.module('web')
                 });
                 t = t.concat(result['Buckets']);
               }
+              // resolve(t);
+              // console.log(result)
 
               if (result.NextMarker) {
                 opt.Marker = result.NextMarker;
@@ -1218,6 +1241,14 @@ angular.module('web')
        *    object = {id, secret, region, bucket}
        */
       function getClient(opt) {
+
+        var options = prepaireOptions(opt)
+        // console.log(options)
+        var client = new ALY.OSS(options);
+        return client;
+      }
+
+      function prepaireOptions(opt){
         var authInfo = AuthInfo.get();
 
         var bucket;
@@ -1229,7 +1260,9 @@ angular.module('web')
         }
 
         var endpoint = getOssEndpoint(authInfo.region || 'oss-cn-beijing', bucket, authInfo.eptpl);
+
         var options = {
+          //region: authInfo.region,
           accessKeyId: authInfo.id || 'a',
           secretAccessKey: authInfo.secret || 'a',
           endpoint: endpoint,
@@ -1243,9 +1276,7 @@ angular.module('web')
         if(authInfo.id && authInfo.id.indexOf('STS.')==0){
             options.securityToken= authInfo.stoken || null;
         }
-        console.log(options)
-        var client = new ALY.OSS(options);
-        return client;
+        return options;
       }
 
       function parseOSSPath(ossPath) {
@@ -1280,7 +1311,7 @@ angular.module('web')
         }
 
         //region是domain
-        if (region.indexOf('.') != -1) {
+        if (region && region.indexOf('.') != -1) {
           if (region.indexOf('http') != 0) {
             region = Global.ossEndpointProtocol == 'https:' ? ('https://'+ bucket+'.' + region + ':443'+'/' + key) : ('http://' + bucket+'.'+ region+'/' + key);
           }
@@ -1300,35 +1331,35 @@ angular.module('web')
         eptpl = eptpl || AuthInfo.get().eptpl || 'http://{region}.aliyuncs.com';
 
         eptpl = eptpl.replace('{region}',region);
-        console.log('-->',eptpl)
+        //console.log('-->',eptpl)
         return eptpl;
 
         //-------------------------
 
-        var isHttps = Global.ossEndpointProtocol == 'https:';
-        //通过bucket获取endpoint
-        if (bucket && $rootScope.bucketMap && $rootScope.bucketMap[bucket]) {
-          var endpoint = $rootScope.bucketMap[bucket][$rootScope.internalSupported?'intranetEndpoint':'extranetEndpoint'];
-          if (endpoint) return isHttps ? ('https://' + endpoint + ':443') : ('http://' + endpoint);
-        }
-
-        //region是domain
-        if (region.indexOf('.') != -1) {
-          if (region.indexOf('http') != 0) {
-            region = Global.ossEndpointProtocol == 'https:' ? ('https://' + region + ':443') : ('http://' + region);
-          }
-          return region;
-        }
-
-        //region
-        if (Global.ossEndpointProtocol == 'https:') {
-          return $rootScope.internalSupported
-              ?'https://' + region + '-internal.aliyuncs.com:443'
-              :'https://' + region + '.aliyuncs.com:443';
-        }
-        return $rootScope.internalSupported
-              ? 'http://' + region + '-internal.aliyuncs.com'
-              : 'http://' + region + '.aliyuncs.com';
+        // var isHttps = Global.ossEndpointProtocol == 'https:';
+        // //通过bucket获取endpoint
+        // if (bucket && $rootScope.bucketMap && $rootScope.bucketMap[bucket]) {
+        //   var endpoint = $rootScope.bucketMap[bucket][$rootScope.internalSupported?'intranetEndpoint':'extranetEndpoint'];
+        //   if (endpoint) return isHttps ? ('https://' + endpoint + ':443') : ('http://' + endpoint);
+        // }
+        //
+        // //region是domain
+        // if (region && region.indexOf('.') != -1) {
+        //   if (region.indexOf('http') != 0) {
+        //     region = Global.ossEndpointProtocol == 'https:' ? ('https://' + region + ':443') : ('http://' + region);
+        //   }
+        //   return region;
+        // }
+        //
+        // //region
+        // if (Global.ossEndpointProtocol == 'https:') {
+        //   return $rootScope.internalSupported
+        //       ?'https://' + region + '-internal.aliyuncs.com:443'
+        //       :'https://' + region + '.aliyuncs.com:443';
+        // }
+        // return $rootScope.internalSupported
+        //       ? 'http://' + region + '-internal.aliyuncs.com'
+        //       : 'http://' + region + '.aliyuncs.com';
       }
 
     }

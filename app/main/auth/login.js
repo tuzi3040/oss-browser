@@ -3,7 +3,7 @@ angular.module('web')
   .controller('loginCtrl', ['$scope', '$rootScope', '$translate','Auth','AuthInfo','$timeout','$location','Const','Dialog','Toast','Cipher',
     function ($scope, $rootScope, $translate, Auth, AuthInfo,$timeout, $location, Const, Dialog, Toast, Cipher) {
 
-      var DEF_EP_TPL = 'http://{region}.aliyuncs.com';
+      var DEF_EP_TPL = 'https://{region}.aliyuncs.com';
 
       var KEY_REMEMBER = Const.KEY_REMEMBER;
       var SHOW_HIS = Const.SHOW_HIS;
@@ -21,6 +21,8 @@ angular.module('web')
         item: {
           eptpl: DEF_EP_TPL,
         },
+        eptplType: 'default',
+
         hideTopNav: 1,
         reg_osspath: /^oss\:\/\//,
         regions: regions,
@@ -32,8 +34,25 @@ angular.module('web')
         open: open,
 
         onSubmit2: onSubmit2,
-        authTokenChange:authTokenChange
+        authTokenChange:authTokenChange,
+
+        eptplChange: eptplChange
       });
+
+      $scope.$watch('item.eptpl', function(v){
+        $scope.eptplType = (v==DEF_EP_TPL)?'default':'customize';
+      });
+
+
+      function eptplChange(t){
+        $scope.eptplType=t;
+        console.log(t);
+        if(t=='default'){
+           $scope.item.eptpl = DEF_EP_TPL;
+        }else{
+          $scope.item.eptpl ='';
+        }
+      }
 
       function open(a){
         openExternal(a);
@@ -75,7 +94,7 @@ angular.module('web')
           }catch(e){
              $scope.authTokenInfo = null;
           }
-        },600)
+        },600);
       }
 
       init();
@@ -83,6 +102,7 @@ angular.module('web')
         $scope.flags.remember = localStorage.getItem(KEY_REMEMBER) || 'NO';
         $scope.flags.showHis = localStorage.getItem(SHOW_HIS) || 'NO';
         angular.extend($scope.item , AuthInfo.getRemember());
+
 
         //临时token
         $scope.item.authToken = localStorage.getItem(KEY_AUTHTOKEN) || '';
@@ -111,7 +131,7 @@ angular.module('web')
 
       function showRemoveHis(h){
         var title = T('auth.removeAK.title'); //删除AK
-        var message = T('auth.removeAK.message',{id: '<code>'+h.id+'</code>'}); //'ID：'+h.id+', 确定删除?'
+        var message = T('auth.removeAK.message',{id: h.id}); //'ID：'+h.id+', 确定删除?'
         Dialog.confirm(title,message,function(b){
           if(b){
             AuthInfo.removeFromHistories(h.id);
@@ -146,6 +166,9 @@ angular.module('web')
         localStorage.setItem(KEY_REMEMBER,$scope.flags.remember);
 
         var data = angular.copy($scope.item);
+        //trim password
+        if(data.secret) data.secret = data.secret.trim();
+
         delete data.authToken;
         delete data.securityToken;
 
@@ -153,12 +176,13 @@ angular.module('web')
           AuthInfo.remember(data);
         }
 
-        Toast.info('正在登录中...', 1000);
+        Toast.info(T('logining'), 1000);
+
 
 
         Auth.login(data).then(function(){
           if($scope.flags.remember=='YES') AuthInfo.addToHistories(data);
-          Toast.success('登录成功，正在跳转...', 1000);
+          Toast.success(T('login.successfully'), 1000);
           $location.url('/');
         },function(err){
           Toast.error(err.code+':'+err.message);
@@ -179,10 +203,10 @@ angular.module('web')
 
         var data = angular.copy($scope.authTokenInfo);
 
-        Toast.info('正在登录...', 1000);
+        Toast.info(T('logining'), 1000);//'正在登录...'
 
         Auth.login(data).then(function(){
-          Toast.success('登录成功，正在跳转...', 1000);
+          Toast.success(T('login.successfully'), 1000);//'登录成功，正在跳转...'
           $location.url('/');
         },function(err){
           Toast.error(err.code+':'+err.message);

@@ -30,7 +30,6 @@ angular.module('web')
         var ignoreError = true;
 
         //console.log(item, currentInfo)
-
         $.ajax({url: item.url,
           headers: {'Range':'bytes=0-1','x-random':Math.random(),'Cache-Control':"no-cache"},
           complete: function(xhr){
@@ -38,6 +37,10 @@ angular.module('web')
             if(xhr.status < 300){
               $scope.err = null;
               $scope.step=1;
+
+              $scope.item.url = encodeURI($scope.item.url);
+              $scope.info.url = $scope.item.url;
+              safeApply($scope);
             }
             else if(xhr.status==403){
               $scope.step = 2;
@@ -67,16 +70,16 @@ angular.module('web')
         var t=[ ];
         var name = $scope.item.name;
 
-        t.push('点此下载: <a href="'+url+'" target="_blank">'+name+'</a>');
+        t.push(T('click.download')+': <a href="'+url+'" target="_blank">'+name+'</a>'); //点此下载
 
-        t.push('扫码下载:')
+        t.push(T('qrcode.download')+':') //扫码下载
 
         var src = $('#addr-qrcode-wrap canvas')[0].toDataURL("image/jpeg");
         t.push('<img src="'+src+'" style="width:300px;height:300px"/>');
 
 
         var sendInfo = {
-          subject: '文件下载地址:['+ name+']',
+          subject: T('file.download.address')+':['+ name+']',
           to: $scope.info.mailTo,
           html: t.join('<br/>')
         };

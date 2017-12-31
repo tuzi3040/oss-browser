@@ -87,32 +87,14 @@ UploadJob.prototype.start = function () {
   this.stopFlag = false;
   self._hasCallComplete=false;
 
-
-  //console.log('getFileCrc64',self.from.path)
-  util.getFileCrc64(self, self.from.path, function(err, crc64Str){
-    if(isDebug) console.log('CRC64:', self.from.path, err, crc64Str);
-
-    if(self.stopFlag){
-      return;
-    }
-
-    if(err){
-      self.message= err.message;
-      self._changeStatus('failed');
-      self.emit('error', err);
-      //todo:
-      //Error: EBADF: bad file descriptor, close
-    }
-    else{
-      self.crc64Str = crc64Str || '';
-      self.startUpload();
-      self.startSpeedCounter();
-    }
-  });
-
+  //开始
+  self.startUpload();
+  self.startSpeedCounter();
 
   return this;
 };
+
+
 
 UploadJob.prototype.stop = function () {
   this.stopFlag = true;
@@ -140,7 +122,7 @@ UploadJob.prototype.deleteOssFile = function(){
    var self = this;
    self.oss.deleteObject({Bucket: self.to.bucket, Key: self.to.key}, function(err){
      if(err) console.error(err);
-     else console.log('crc checking failed, oss file [oss://'+  self.to.bucket+'/'+self.to.key+'] is deleted');
+     else console.log('crc64 verifying failed, oss file [oss://'+  self.to.bucket+'/'+self.to.key+'] is deleted');
    });
 };
 
@@ -198,7 +180,7 @@ UploadJob.prototype.startUpload = function () {
 UploadJob.prototype.startSpeedCounter = function(){
   var self = this;
 
-  self.lastLoaded = 0;
+  self.lastLoaded = self.prog.loaded||0;
 
   var tick = 0;
   clearInterval(self.speedTid);
@@ -219,14 +201,13 @@ UploadJob.prototype.startSpeedCounter = function(){
     tick++;
     if(tick>5){
       tick=0;
-      self.maxConcurrency = util.computeMaxConcurrency(self.speed);
+      self.maxConcurrency = util.computeMaxConcurrency(self.speed, self.checkPoints.chunkSize);
       if(isDebug) console.info('set max concurrency:', self.maxConcurrency, self.from.path);
     }
 
   },1000);
 
 };
-
 
 
 UploadJob.prototype.uploadSingle = function () {
@@ -257,10 +238,12 @@ UploadJob.prototype.uploadSingle = function () {
     _dig();
     function _dig(){
       var req = self.oss.putObject(params, function (err,data) {
-
+        //console.log('[putObject] returns:',err,JSON.stringify(data))
         if (err) {
 
-          if(retryTimes>10 ){
+          if(err.message.indexOf('Access denied')!=-1
+          || err.message.indexOf('You have no right to access')!=-1
+          || retryTimes>10 ){
             self.message=err.message;
             self._changeStatus('failed');
             self.emit('error', err);
@@ -273,28 +256,21 @@ UploadJob.prototype.uploadSingle = function () {
           }
         }
         else {
-          if(isDebug){
-            console.info('checking crc64Str [single]:', filePath, self.crc64Str, data['HashCrc64ecma'], self.from.path);
-          }
+          self._changeStatus('verifying');
+          util.checkFileHash(self.from.path, data['HashCrc64ecma'], data['ContentMD5'], function(err){
+             if(err){
+               self.message = (err.message||err);
+               console.error(self.message, self.to.path);
+               self._changeStatus('failed');
+               self.emit('error', err);
+               self.deleteOssFile();
+             }else{
+               self._changeStatus('finished');
+               self.emit('complete');
+               console.log('upload: '+self.from.path+' %celapse','background:green;color:white',self.endTime-self.startTime,'ms')
 
-          if(!self.crc64Str || self.crc64Str == data['HashCrc64ecma']){
-            self._changeStatus('finished');
-            self.emit('complete');
-          }else{
-            if(retryTimes>10){
-              self.message="HashCrc64ecma not match";
-              self._changeStatus('failed');
-              self.emit('error', new Error(self.message));
-              self.deleteOssFile();
-            }else{
-              retryTimes++;
-              console.warn('put object error:HashCrc64ecma not match',
-                   ', -------retrying...', retryTimes+'/10');
-              setTimeout(function(){
-                _dig();
-              },2000);
-            }
-          }
+             }
+          });
         }
       });
 
@@ -326,7 +302,6 @@ UploadJob.prototype.uploadMultipart = function (checkPoints) {
 
   var maxRetries = 100;
 
-
   var retries = {}; //重试次数 [partNumber]
   var concurrency = 0; //并发块数
 
@@ -347,6 +322,8 @@ UploadJob.prototype.uploadMultipart = function (checkPoints) {
     self._changeStatus('finished');
     self.emit('partcomplete', util.getPartProgress(checkPoints), JSON.parse(JSON.stringify(checkPoints)));
     self.emit('complete');
+    console.log('upload: '+self.from.path+' %celapse','background:green;color:white',self.endTime-self.startTime,'ms')
+
     return;
   }
 
@@ -611,6 +588,7 @@ UploadJob.prototype.uploadMultipart = function (checkPoints) {
     //
     // console.log('-->completeMultipartUpload', doneParams.UploadId)
     util.completeMultipartUpload(self, doneParams, function(err, data){
+      console.log('[completeMultipartUpload] returns:',err, JSON.stringify(data))
       if (err) {
         console.error('['+doneParams.UploadId+']', err, doneParams);
         self.message=err.message;
@@ -618,18 +596,22 @@ UploadJob.prototype.uploadMultipart = function (checkPoints) {
         self.emit('error', err);
       }
       else{
-        console.info('--checking crc64Str [multi]:', self.crc64Str, data['HashCrc64ecma'], self.from.path);
+        self._changeStatus('verifying');
+        util.checkFileHash(self.from.path, data['HashCrc64ecma'], data['ContentMD5'], function(err){
+           if(err){
+             self.message = (err.message||err);
+             console.error(self.message, self.to.path);
+             self._changeStatus('failed');
+             self.emit('error', err);
+             self.deleteOssFile();
+           }else{
+             checkPoints.done=true;
+             self._changeStatus('finished');
+             self.emit('complete');
+             console.log('upload: '+self.from.path+' %celapse','background:green;color:white',self.endTime-self.startTime,'ms')
+           }
+        });
 
-        if(!self.crc64Str || self.crc64Str == data['HashCrc64ecma']){
-          checkPoints.done=true;
-          self._changeStatus('finished');
-          self.emit('complete');
-        }else{
-          self.message="HashCrc64ecma mismatch, "+self.crc64Str+', '+data['HashCrc64ecma'];
-          self._changeStatus('failed');
-          self.emit('error', new Error(self.message));
-          self.deleteOssFile();
-        }
       }
     });
 

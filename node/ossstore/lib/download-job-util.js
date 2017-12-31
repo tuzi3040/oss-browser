@@ -9,14 +9,11 @@ module.exports = {
 
   parseLocalPath: util.parseLocalPath,
   parseOssPath: util.parseOssPath,
-  getBigFileMd5: getBigFileMd5,
-  getFileCrc64: getFileCrc64,
 
   headObject: headObject,
-  computeMaxConcurrency: computeMaxConcurrency
+  computeMaxConcurrency: computeMaxConcurrency,
+  checkFileHash : util.checkFileHash
 };
-
-
 
 function headObject(self, objOpt, fn){
   var retryTimes = 0;
@@ -47,41 +44,54 @@ function headObject(self, objOpt, fn){
     });
   }
 }
-function getFileCrc64(p, fn){
-  util.getFileCrc64(p,fn);
-};
 
-function getBigFileMd5(p, fn){
-   var md5sum = crypto.createHash('md5');
-   var stream = fs.createReadStream(p);
-   stream.on('data', function(chunk) {
-       md5sum.update(chunk);
-   });
-   stream.on('end', function() {
-     str = md5sum.digest('base64');
-     fn(null, str);
-   });
-   stream.on('error', function(err) {
-     fn(err);
-   });
-}
 
 function getSensibleChunkSize(size) {
-  var MaxChunkSize = 5 * 1024 * 1024; //5MB
+  var chunkSize = 5 * 1024 * 1024; //5MB
 
-  if(size < MaxChunkSize){
+  if(size < chunkSize){
     return size;
   }
+  else if(size < 100 * 1024*1024){
+    chunkSize = 10 * 1024 * 1024; //10MB
+  }
+  else if(size < 500 * 1024*1024){
+    chunkSize = 20 * 1024 * 1024; //20MB
+  }
+  else if(size < 1024 * 1024*1024){
+    chunkSize = 30 * 1024 * 1024; //30MB
+  }
+  else if(size < 5* 1024 * 1024*1024){
+    chunkSize = 50 * 1024 * 1024; //50MB
+  }
+  else if(size < 10* 1024 * 1024*1024){
+    chunkSize = 60 * 1024 * 1024; //60MB
+  }
+  else{
+    chunkSize = 80 * 1024 * 1024; //80MB
+  }
+
   var c = Math.ceil(size/5000);
-  return Math.max(c, MaxChunkSize);
+  return Math.max(c, chunkSize);
 }
 
 //根据网速调整下载并发量
-function computeMaxConcurrency(speed){
-  if(speed > 8*1024*1024) return 10;
-  else if(speed > 5*1024*1024) return 7;
-  else if(speed > 2*1024*1024) return 5;
-  else if(speed > 1024*1024) return 3;
-  else if(speed > 100*1024) return 2;
-  else return 1;
+function computeMaxConcurrency(speed, chunkSize){
+  //console.log('---',speed, chunkSize)
+  if(speed > chunkSize){
+    return Math.ceil(speed / chunkSize) * 3;
+  }
+  else if(speed > chunkSize/2){
+    return 6;
+  }else{
+    return 3;
+  }
+
+  // if(speed > 11*1024*1024) return 13;
+  // else if(speed > 8*1024*1024) return 10;
+  // else if(speed > 5*1024*1024) return 7;
+  // else if(speed > 2*1024*1024) return 5;
+  // else if(speed > 1024*1024) return 3;
+  // else if(speed > 100*1024) return 2;
+  // else return 1;
 }

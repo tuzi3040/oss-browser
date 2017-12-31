@@ -1,15 +1,17 @@
 angular.module('web')
-  .factory('Auth', ['$q', '$location', 'ossSvs2', 'AuthInfo', 'Const', 'Cipher',
-    function($q, $location, ossSvs2, AuthInfo, Const, Cipher) {
-
+  .factory('Auth', ['$q', '$location','$translate', 'ossSvs2', 'AuthInfo', 'Const', 'Cipher',
+    function($q, $location, $translate, ossSvs2, AuthInfo, Const, Cipher) {
+      var T = $translate.instant;
       return {
         login: login,
         logout: logout
       };
 
       function login(data) {
+        if(!data.osspath)delete data.region;
+
         var df = $q.defer();
-        data.httpOptions={timeout:3000};
+        data.httpOptions={timeout:15000};
 
         if (data.osspath) {
 
@@ -27,7 +29,7 @@ angular.module('web')
               df.resolve();
             }
             else{
-              df.reject({code:'Error',message:'请确定Endpoint是否正确'});
+              df.reject({code:'Error',message:T('login.endpoint.error')}); //'请确定Endpoint是否正确'
             }
           });
 
@@ -49,7 +51,7 @@ angular.module('web')
               AuthInfo.save(data);
               df.resolve();
             }else{
-              df.reject({code:'Error',message:'请确定Endpoint是否正确'});
+              df.reject({code:'Error',message:T('login.endpoint.error')});
             }
           });
         }

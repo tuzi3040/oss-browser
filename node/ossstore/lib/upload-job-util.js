@@ -18,8 +18,9 @@ module.exports = {
   getUploadId: getUploadId,
   completeMultipartUpload: completeMultipartUpload,
 
-  getFileCrc64: getFileCrc64,
-  computeMaxConcurrency: computeMaxConcurrency
+  computeMaxConcurrency: computeMaxConcurrency,
+
+  checkFileHash: util.checkFileHash
 };
 
 
@@ -29,7 +30,7 @@ module.exports = {
  ************************************/
 
 
-function getFileCrc64(self, p, fn){
+function getFileCrc64_2(self, p, fn){
   if(self.crc64Str){
     fn(null, self.crc64Str);
     return;
@@ -127,7 +128,7 @@ function getUploadId(checkPoints, self, params, fn){
 
       //console.log(err, res, '<========')
       if (err) {
-        if(retryTimes > 10){
+        if(err.message.indexOf('You have no right to access')!=-1 || retryTimes > 10){
           fn(err);
         }else{
 
@@ -227,28 +228,57 @@ function prepareChunks(filePath, checkPoints, fn){
 /**
  * @param total size
  */
-function getSensibleChunkSize(total) {
+function getSensibleChunkSize(size) {
 
-  var minChunkSize = 5 * 1024 * 1024;  //5MB
-  if(total <= minChunkSize){
-    return minChunkSize;
+  var chunkSize = 5 * 1024 * 1024; //5MB
+
+  if(size < chunkSize){
+    return size;
+  }
+  else if(size < 100 * 1024*1024){
+    chunkSize = 10 * 1024 * 1024; //10MB
+  }
+  else if(size < 500 * 1024*1024){
+    chunkSize = 20 * 1024 * 1024; //20MB
+  }
+  else if(size < 1024 * 1024*1024){
+    chunkSize = 30 * 1024 * 1024; //30MB
+  }
+  else if(size < 5* 1024 * 1024*1024){
+    chunkSize = 50 * 1024 * 1024; //50MB
+  }
+  else if(size < 10* 1024 * 1024*1024){
+    chunkSize = 60 * 1024 * 1024; //60MB
+  }
+  else{
+    chunkSize = 80 * 1024 * 1024; //80MB
   }
 
-  var parts = Math.ceil(total / minChunkSize);
+  var parts = Math.ceil(size / chunkSize);
   if (parts > 10000) {
-    return Math.ceil(total / 10000);
+    return Math.ceil(size / 10000);
   }
-
-  return minChunkSize;
+  return chunkSize;
 }
 
 
 //根据网速调整上传并发量
-function computeMaxConcurrency(speed){
-  if(speed > 8*1024*1024) return 10;
-  else if(speed > 5*1024*1024) return 7;
-  else if(speed > 2*1024*1024) return 5;
-  else if(speed > 1024*1024) return 3;
-  else if(speed > 100*1024) return 2;
-  else return 1;
+function computeMaxConcurrency(speed, chunkSize){
+  //console.log(speed, chunkSize)
+  if(speed > chunkSize){
+    return Math.ceil(speed / chunkSize) * 3;
+  }
+  else if(speed > chunkSize/2){
+    return 6;
+  }else{
+    return 3;
+  }
+
+  // if(speed > 11*1024*1024) return 13;
+  // else if(speed > 8*1024*1024) return 10;
+  // else if(speed > 5*1024*1024) return 7;
+  // else if(speed > 2*1024*1024) return 5;
+  // else if(speed > 1024*1024) return 3;
+  // else if(speed > 100*1024) return 2;
+  // else return 1;
 }

@@ -32,6 +32,13 @@ ipcMain.on('asynchronous-message', (event, arg) => {
 });
 ///*****************************************
 
+
+var custom={};
+try{
+  custom = require('./custom')
+}catch(e){
+  console.log('没有自定义模块')
+}
 //let logo = nativeImage.createFromPath('icons/logo.ico');
 
 // Keep a global reference of the window object, if you don't, the window will
@@ -39,26 +46,26 @@ ipcMain.on('asynchronous-message', (event, arg) => {
 let win;
 
 if (process.platform == 'darwin') {
-  app.dock.setIcon(path.join(__dirname, 'icons', 'icon.png'));
+  app.dock.setIcon(custom.logo_png || path.join(__dirname, 'icons', 'icon.png'));
 }
 
 function createWindow() {
   var opt = {
-    width: 1020,
+    width: 1050,
     height: 700,
     minWidth: 1020,
     minHeight: 660,
-    title: "OSS Browser",
-    icon: path.join(__dirname, 'icons', 'icon.ico')
+    title: custom.title || "OSS Browser",
+    icon: custom.logo_ico || path.join(__dirname, 'icons', 'icon.ico')
   };
 
   if(process.platform=='linux'){
-    opt.icon = path.join(__dirname, 'icons', 'icon.png');
+    opt.icon = custom.logo_png || path.join(__dirname, 'icons', 'icon.png');
   }
   // Create the browser window.   http://electron.atom.io/docs/api/browser-window/
   win = new BrowserWindow(opt);
 
-  win.setTitle("OSS Browser");
+  win.setTitle(custom.title || "OSS Browser");
 
   // and load the index.html of the app.
   win.loadURL(`file://${__dirname}/index.html`);
