@@ -1,21 +1,42 @@
+const cp = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
 console.log(`run on: platform=${process.platform},arch=${process.arch}`);
 
-if(['win32','linux','darwin'].indexOf(process.platform)!=-1
-&& (process.arch=='x64' || (process.platform=='win32' && process.arch=='ia32'))){
+try{
+  var obj = require('./electron-crc64-prebuild');
+  //var obj = require('./cpp-addon');
+  console.log('loaded: crc64-cpp-addon');
 
-  try{
-    //console.log(require('./cpp-addon').crc64('123456789'))
-    exports.crc64File = require('./cpp-addon').crc64File;
-    console.log('loaded: crc64-cpp-addon');
-
-  }catch(e){
-    console.warn(e)
-    exports.crc64File = require('./pure-js').crc64File;
-    console.log('loaded: crc64-pure-js');
-  }
-}
-else {
-  exports.crc64File = require('./pure-js').crc64File;
+}catch(e){
+  console.warn(e)
+  var obj = require('./pure-js');
   console.log('loaded: crc64-pure-js');
 }
+
+
+// obj.crc64FileProcess = function(p, fn){
+//   var proc = cp.fork(path.join(__dirname, 'fork.js'), [p])
+//   proc.on('message', function(data){
+//      fn(data.error, data.data)
+//   });
+// }
+
+obj.crc64FileProcess = function(p, fn){
+  fs.stat(p, function(err, data){
+    if(err)fn(err);
+    else{
+      if(data.size > 100 * 1024){
+        var proc = cp.fork(path.join(__dirname, 'fork.js'), [p])
+        proc.on('message', function(data){
+           fn(data.error, data.data)
+        });
+      }else{
+        obj.crc64File(p,fn);
+      }
+    }
+  });
+}
+
+module.exports = obj;

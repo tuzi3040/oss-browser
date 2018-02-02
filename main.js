@@ -7,7 +7,8 @@ const {
   BrowserWindow
 } = electron;
 
-
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const nativeImage = require('electron').nativeImage;
 
@@ -25,17 +26,13 @@ for(var port of PORTS){
     console.log(e);
   }
 }
-//监听web page里发出的message
-ipcMain.on('asynchronous-message', (event, arg) => {
-  //在main process里向web page发出message
-  event.sender.send('asynchronous-reply', port);
-});
+
 ///*****************************************
 
 
 var custom={};
 try{
-  custom = require('./custom')
+  custom = require(path.join(__dirname,'../custom'));
 }catch(e){
   console.log('没有自定义模块')
 }
@@ -51,7 +48,7 @@ if (process.platform == 'darwin') {
 
 function createWindow() {
   var opt = {
-    width: 1050,
+    width: 1221,
     height: 700,
     minWidth: 1020,
     minHeight: 660,
@@ -62,14 +59,13 @@ function createWindow() {
   if(process.platform=='linux'){
     opt.icon = custom.logo_png || path.join(__dirname, 'icons', 'icon.png');
   }
+
+
   // Create the browser window.   http://electron.atom.io/docs/api/browser-window/
   win = new BrowserWindow(opt);
 
   win.setTitle(custom.title || "OSS Browser");
-
-  // and load the index.html of the app.
   win.loadURL(`file://${__dirname}/index.html`);
-
 
   win.setMenuBarVisibility(false);
 
@@ -101,9 +97,73 @@ function createWindow() {
   }
 
 }
-ipcMain.on('asynchronous-message', (event, msg) => {
-   if(msg=='openDevTools') win.webContents.openDevTools();
+
+
+
+//监听web page里发出的message
+ipcMain.on('asynchronous', (event, data) => {
+  switch (data.key) {
+    case 'getStaticServerPort':
+      //在main process里向web page发出message
+      event.sender.send('asynchronous-reply', {key:data.key, port: port });
+      break;
+    case 'openDevTools':
+       win.webContents.openDevTools();
+      break;
+    case 'installRestart':
+
+      var version = data.version;
+      //Copy
+      //var from = path.join(os.homedir(), '.oss-browser', version+'-app.asar');
+      var from = path.join(path.dirname(__dirname), version+'-app.asar');
+      var to = path.join(path.dirname(__dirname), 'app.asar');
+
+      process.noAsar = true;
+
+      moveFile(from, to, function(e){
+        if(e)fs.writeFileSync(path.join(os.homedir(), '.oss-browser','upgrade-error.txt'), JSON.stringify(e))
+        app.relaunch();
+        app.exit(0);
+      });
+
+      break;
+  }
+
 });
+
+function moveFile(from, to, fn){
+  if (process.platform != 'win32') {
+    fs.rename(from, to, fn);
+    return;
+  }
+
+  var readStream = fs.createReadStream(from);
+  var writeStream = fs.createWriteStream(to);
+
+  readStream.on('data', function(chunk) {
+      if (writeStream.write(chunk) === false) {
+          readStream.pause();
+      }
+  });
+  readStream.on('error', function(err) {
+    fn(err)
+  });
+  readStream.on('end', function() {
+      writeStream.end();
+      setTimeout(function(){
+        fs.unlinkSync(from);
+        fn();
+      },200)
+
+  });
+
+  writeStream.on('drain', function() {
+      readStream.resume();
+  });
+  writeStream.on('error', function(err) {
+      fn(err)
+  });
+}
 
 //singleton
 const shouldQuit = app.makeSingleInstance((commandLine, workingDirectory) => {
@@ -128,9 +188,9 @@ app.on('ready', createWindow);
 app.on('window-all-closed', () => {
   // On OS X it is common for applications and their menu bar
   // to stay active until the user quits explicitly with Cmd + Q
-  if (process.platform !== 'darwin') {
+  //if (process.platform !== 'darwin') {
     app.quit();
-  }
+  //}
 });
 
 app.on('activate', () => {
@@ -189,6 +249,21 @@ function getMenuTemplate() {
       label: "Select All",
       accelerator: "CmdOrCtrl+A",
       selector: "selectAll:"
+    }]
+  },{
+    label: 'Window',
+    submenu: [{
+      label: 'Minimize',
+      accelerator: "CmdOrCtrl+M",
+      click: function() {
+        win.minimize();
+      }
+    },{
+      label: 'Close',
+      accelerator: "CmdOrCtrl+W",
+      click: function() {
+        win.close();
+      }
     }]
   }];
 }

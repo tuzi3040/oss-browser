@@ -35,7 +35,7 @@ angular.module('web')
         angular.forEach(arr, function (n) {
           //console.log(n,'<=====');
           var job = createJob(authInfo, n);
-          if(job.status=='waiting' || job.status=='running') job.stop();
+          if(job.status=='waiting' || job.status=='running'|| job.status=='verifying') job.stop();
           addEvents(job);
         });
       }
@@ -66,6 +66,9 @@ angular.module('web')
           //save
           saveProg();
         });
+        job.on('speedChange', function(){
+          safeApply($scope);
+        })
 
         job.on('complete', function () {
           concurrency--;

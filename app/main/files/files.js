@@ -10,6 +10,7 @@ angular.module('web')
         },
 
         keepMoveOptions: null,
+        isMac: os.platform()=='darwin',
 
         sch: {
           bucketName: '',
@@ -95,30 +96,54 @@ angular.module('web')
 
 
       });
-      $scope.fileSpacerMenuOptions = [
-        [function(){
-          return '<i class="glyphicon glyphicon-cloud-upload text-info"></i> ' + T('upload')
-        }, function ($itemScope, $event) {
-          showUploadDialog()
-        }, function(){
-          return $scope.currentAuthInfo.privilege!='readOnly'
-        }],
-        [function(){
-          return '<i class="glyphicon glyphicon-plus text-success"></i> ' + T('folder.create')
-        }, function ($itemScope, $event) {
-          showAddFolder()
-        }, function(){
-          return $scope.currentAuthInfo.privilege!='readOnly'
-        }],
 
-        [function(){
-          return '<i class="fa fa-paste text-primary"></i> ' + T('paste') + ($scope.keepMoveOptions?'('+$scope.keepMoveOptions.items.length+')':'')
-        }, function ($itemScope, $event) {
-          showPaste()
-        }, function(){
-          return $scope.keepMoveOptions
-        }]
-      ];
+      if($scope.isMac){
+        $scope.fileSpacerMenuOptions = [
+          [function(){
+            return '<i class="fa fa-upload text-info"></i> ' + T('upload')
+          }, function ($itemScope, $event) {
+            showUploadDialog()
+          }, function(){
+            return $scope.currentAuthInfo.privilege!='readOnly'
+          }]
+        ]
+      }
+      else{
+        $scope.fileSpacerMenuOptions = [
+          [function(){
+            return '<i class="fa fa-upload text-info"></i> ' + T('file')
+          }, function ($itemScope, $event) {
+            showUploadDialog()
+          }, function(){
+            return $scope.currentAuthInfo.privilege!='readOnly'
+          }],
+
+          [function(){
+            return '<i class="fa fa-upload text-info"></i> ' + T('folder')
+          }, function ($itemScope, $event) {
+            showUploadDialog(true)
+          }, function(){
+            return $scope.currentAuthInfo.privilege!='readOnly'
+          }]
+        ]
+      }
+      $scope.fileSpacerMenuOptions = $scope.fileSpacerMenuOptions.concat([
+        [ function(){
+             return '<i class="glyphicon glyphicon-plus text-success"></i> ' + T('folder.create')
+          }, function ($itemScope, $event) {
+            showAddFolder()
+          }, function(){
+            return $scope.currentAuthInfo.privilege!='readOnly'
+          }],
+
+          [function(){
+            return '<i class="fa fa-paste text-primary"></i> ' + T('paste') + ($scope.keepMoveOptions?'('+$scope.keepMoveOptions.items.length+')':'')
+          }, function ($itemScope, $event) {
+            showPaste()
+          }, function(){
+            return $scope.keepMoveOptions
+          }]
+    ]);
 
       $scope.fileMenuOptions = function(item, $index){
         if($scope.sel.x['i_'+$index]){
@@ -136,7 +161,7 @@ angular.module('web')
         return [
           [function(){
             //download
-            return '<i class="glyphicon glyphicon-cloud-download text-primary"></i> ' + T('download')
+            return '<i class="fa fa-download text-primary"></i> ' + T('download')
           }, function ($itemScope, $event) {
             showDownloadDialog()
           }, function(){
@@ -395,7 +420,7 @@ angular.module('web')
             $scope.currentBucket = null;
             $scope.ref.isBucketList = true;
             //只有从来没有 list buckets 过，才list，减少http请求开销
-            if (!$scope.buckets && forceRefresh) listBuckets();
+            if (!$scope.buckets || forceRefresh) listBuckets();
 
             clearObjectsList();
           }
@@ -461,18 +486,20 @@ angular.module('web')
         var authInfo = AuthInfo.get();
         if(authInfo.id.indexOf('STS.')==0){
           angular.forEach(result, function (n) {
-            ossSvs2.getImageBase64Url(info.region, info.bucket, n.path).then(function(data){
-              if(data.ContentType.indexOf('image/')==0){
-                var base64str = new Buffer(data.Body).toString('base64');
-                n.pic_url = 'data:'+data.ContentType+';base64,'+base64str;
-              }
-            })
+            if (!n.isFolder && fileSvs.getFileType(n).type == 'picture') {
+              ossSvs2.getImageBase64Url(info.region, info.bucket, n.path).then(function(data){
+                if(data.ContentType.indexOf('image/')==0){
+                  var base64str = new Buffer(data.Body).toString('base64');
+                  n.pic_url = 'data:'+data.ContentType+';base64,'+base64str;
+                }
+              })
+            }
           });
         }
         else{
           angular.forEach(result, function (n) {
             if (!n.isFolder && fileSvs.getFileType(n).type == 'picture') {
-              n.pic_url = ossSvs2.signatureUrl(info.region, info.bucket, n.path, 3600);
+              n.pic_url = ossSvs2.signatureUrl2(info.region, info.bucket, n.path, 3600, 'image/resize,w_48');
             }
           });
         }
@@ -813,7 +840,7 @@ angular.module('web')
       //上传下载
       var oudtid, oddtid;
 
-      function showUploadDialog() {
+      function showUploadDialog(isFolder) {
         if (oudtid) return;
         oudtid = true;
         $timeout(function () {
@@ -823,7 +850,7 @@ angular.module('web')
         Dialog.showUploadDialog(function (filePaths) {
           if (!filePaths || filePaths.length == 0) return;
           $scope.handlers.uploadFilesHandler(filePaths, $scope.currentInfo);
-        });
+        },isFolder);
       }
 
       function showDownloadDialog() {

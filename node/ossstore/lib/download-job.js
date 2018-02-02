@@ -53,7 +53,7 @@ class DownloadJob extends Base {
 
     //console.log('created download job');
 
-    this.maxConcurrency = 3;
+    this.maxConcurrency = 5;
   }
 }
 
@@ -115,7 +115,7 @@ DownloadJob.prototype._changeStatus = function (status) {
     self.endTime = new Date().getTime();
     //util.closeFD(self.keepFd);
 
-    console.log('clear speed tid', self.status)
+    console.log('clear speed tid, status:', self.status)
     clearInterval(self.speedTid);
     self.speed = 0;
     //推测耗时
@@ -126,7 +126,8 @@ DownloadJob.prototype._changeStatus = function (status) {
 DownloadJob.prototype.startSpeedCounter = function () {
   var self = this;
 
-  self.lastLoaded =self.prog.loaded|| 0;
+  self.lastLoaded = self.prog.loaded|| 0;
+  self.lastSpeed = 0;
   var tick=0;
   clearInterval(self.speedTid);
   self.speedTid = setInterval(function () {
@@ -138,7 +139,10 @@ DownloadJob.prototype.startSpeedCounter = function () {
     }
 
     self.speed = self.prog.loaded - self.lastLoaded;
+    if(self.lastSpeed != self.speed) self.emit('speedChange',self.speed);
+    self.lastSpeed = self.speed;
     self.lastLoaded = self.prog.loaded;
+
 
     //推测耗时
     self.predictLeftTime = self.speed == 0 ? 0 : Math.floor((self.prog.total - self.prog.loaded) / self.speed * 1000);
@@ -147,7 +151,7 @@ DownloadJob.prototype.startSpeedCounter = function () {
     tick++;
     if(tick>5){
       tick=0;
-      self.maxConcurrency = util.computeMaxConcurrency(self.speed, self.chunkSize);
+      self.maxConcurrency = util.computeMaxConcurrency(self.speed, self.chunkSize,self.maxConcurrency);
       console.log('max concurrency:', self.maxConcurrency);
     }
   }, 1000);
@@ -175,8 +179,6 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
   //var keepFd;
   var chunks = [];
 
-  var completedCount = 0;
-  var completedBytes = 0;
 
   var maxRetries = 100;
 
@@ -195,11 +197,22 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
 
   util.headObject(self, objOpt, function (err, headers) {
     if (err) {
-      self.message = 'failed to get oss object meta: ' + err.message;
-      //console.error(self.message);
-      console.error(self.message, self.to.path);
-      self._changeStatus('failed');
-      self.emit('error', err);
+      console.log(err)
+      if(err.message.indexOf('Network Failure')!=-1
+    || err.message.indexOf('getaddrinfo ENOTFOUND')!=-1){
+        self.message = 'failed to get oss object meta: ' + err.message;
+        //console.error(self.message);
+        console.error(self.message, self.to.path);
+        self.stop();
+        //self.emit('error', err);
+      }
+      else{
+        self.message = 'failed to get oss object meta: ' + err.message;
+        //console.error(self.message);
+        console.error(self.message, self.to.path);
+        self._changeStatus('failed');
+        self.emit('error', err);
+      }
       return;
     }
 
@@ -265,7 +278,6 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
       }
     }
 
-    completedCount = chunkNum - chunks.length;
 
     //之前每个part都已经全部下载完成，状态还没改成完成的, 这种情况出现几率极少。
     if (chunks.length == 0) {
@@ -320,15 +332,26 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
         return;
       }
 
-      //util.closeFD(fd);
-      downloadPart(getNextPart());
+      util.getFreeDiskSize(tmpName, function(err, freeDiskSize){
+        console.log('got free disk size:',freeDiskSize, contentLength, freeDiskSize - contentLength)
+
+        if(!err){
+          if(contentLength > freeDiskSize - 10*1024*1024 ){
+            // < 100MB warning
+            self.message="Insufficient disk space";
+            self.stop();
+            return;
+          }
+        }
+
+        downloadPart(getNextPart());
+      });
     });
 
   });
 
   function createFileIfNotExists(p, fn) {
     if (!fs.existsSync(p)) {
-      //if todo: mkdir
       fs.writeFile(tmpName, '', fn);
     } else {
       fn();
@@ -378,15 +401,28 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
         //util.closeFD(keepFd);
         return;
       }
-
+      //console.log('doDownload('+n+')')
       var req = self.oss.getObject(obj, (err, data) => {
+        //console.log('getObject('+n+')', data)
         // var md5 = ALY.util.crypto.md5(data.Body,'hex');
         if (self.stopFlag) {
           //util.closeFD(keepFd);
           return;
         }
 
+
+
+
         if (err) {
+
+          try {
+            req.abort();
+          } catch (e) {
+            console.log(e.stack);
+          }
+          checkPoints.Parts[partNumber].loaded = 0;
+          checkPoints.Parts[partNumber].done = false;
+
           //console.log(err);
           if (err.code == 'RequestAbortedError') {
             //用户取消
@@ -394,15 +430,18 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
             return;
           }
 
-          if (retryCount < maxRetries && err.code!='InvalidObjectState' ) {
-            retryCount++;
-            console.log(`retry download part [${n}] error:${err}, ${self.to.path}`);
-            checkPoints.Parts[partNumber].loaded = 0;
-            setTimeout(function(){
-              doDownload(n);
-            },2000);
 
-          } else {
+
+          if(retryCount >= maxRetries){
+            self.message = `failed to download part [${n}]: ${err.message}`;
+            //console.error(self.message);
+            console.error(self.message, self.to.path);
+            //self._changeStatus('failed');
+            self.stop();
+            //self.emit('error', err);
+            //util.closeFD(keepFd);
+          }
+          else if(err.code=='InvalidObjectState' ){
             self.message = `failed to download part [${n}]: ${err.message}`;
             //console.error(self.message);
             console.error(self.message, self.to.path);
@@ -410,11 +449,35 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
             self.emit('error', err);
             //util.closeFD(keepFd);
           }
+          else{
+            retryCount++;
+            console.log(`retry download part [${n}] error:${err}, ${self.to.path}`);
+            setTimeout(function(){
+              doDownload(n);
+            },2000);
+          }
+          return;
+        }
+        else if(data.Body.length!=parseInt(data.ContentLength)){
+          //下载不完整，重试， 这里应该判断crc，但是考虑效率，先不做
+
+          try {
+            req.abort();
+          } catch (e) {
+            console.log(e.stack);
+          }
+          checkPoints.Parts[partNumber].loaded = 0;
+          checkPoints.Parts[partNumber].done = false;
+
+          retryCount++;
+          console.warn(`retry download part [${n}] error: missing data, ${self.to.path}`);
+          setTimeout(function(){
+            doDownload(n);
+          },2000);
           return;
         }
 
-
-        //console.log(0, end - start, start, end);
+        //console.log(n, end - start, start, end, data.Body.length);
         writeFileRange(tmpName, data.Body, start, function (err) {
 
           if (self.stopFlag) {
@@ -432,19 +495,24 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
             return;
           }
 
-          completedCount++;
           concurrency--;
 
-          completedBytes += (end - start);
+
 
           //self.prog.loaded += (end-start);
 
           checkPoints.Parts[partNumber].done = true;
+          //checkPoints.Parts[partNumber].loaded = data.ContentLength;
 
           //var progCp = JSON.parse(JSON.stringify(self.prog));
 
           console.log(`complete part [${n}] ${self.to.path}`);
-          if (completedCount == chunkNum) {
+
+          //console.log(JSON.stringify(checkPoints.Parts,' ',2))
+
+          var progInfo = util.getPartProgress(checkPoints.Parts)
+
+          if (progInfo.done==progInfo.total) {
             //下载完成
             //util.closeFD(keepFd);
             //检验MD5
@@ -466,10 +534,7 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
 
                   self._changeStatus('finished');
                   //self.emit('progress', progCp);
-                  self.emit('partcomplete', {
-                    total: chunkNum,
-                    done: completedCount
-                  }, checkPoints);
+                  self.emit('partcomplete', util.getPartProgress(checkPoints.Parts), checkPoints);
                   self.emit('complete');
                   console.log('download: '+self.to.path+' %celapse','background:green;color:white',self.endTime-self.startTime,'ms')
                 }
@@ -478,10 +543,7 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
             });
           } else {
             //self.emit('progress', progCp);
-            self.emit('partcomplete', {
-              total: chunkNum,
-              done: completedCount
-            }, checkPoints);
+            self.emit('partcomplete', util.getPartProgress(checkPoints.Parts), checkPoints);
             downloadPart(getNextPart());
           }
         });
@@ -491,6 +553,7 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
       req.httpRequest._abortCallback = function () {};
 
       req.on('httpDownloadProgress', function (p) {
+        checkPoints.Parts[partNumber].done = false;
 
         if (self.stopFlag) {
           try {
@@ -527,10 +590,16 @@ DownloadJob.prototype.startDownload = function (checkPoints) {
 
 
 
+  // function writeFileRange(tmpName, data, start, fn) {
+  //   fs.open(tmpName, 'a+', function(err, fd){
+  //     fs.write(fd, data, 0, data.length,  start, fn)
+  //   });
+  // }
   function writeFileRange(tmpName, data, start, fn) {
     var file = fs.createWriteStream(tmpName, {
       start: start,
-      flags: 'r+'
+      flags: 'r+',
+      autoClose: true,
     });
     file.end(data);
     file.on('error', (err) => {
