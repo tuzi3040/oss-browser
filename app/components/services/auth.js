@@ -1,6 +1,6 @@
 angular.module('web')
-  .factory('Auth', ['$q', '$location','$translate', 'ossSvs2', 'AuthInfo', 'Const', 'Cipher',
-    function($q, $location, $translate, ossSvs2, AuthInfo, Const, Cipher) {
+  .factory('Auth', ['$q','$rootScope', '$location','$translate', 'ossSvs2', 'AuthInfo', 'Const', 'Cipher',
+    function($q, $rootScope, $location, $translate, ossSvs2, AuthInfo, Const, Cipher) {
       var T = $translate.instant;
       return {
         login: login,
@@ -13,12 +13,17 @@ angular.module('web')
         var df = $q.defer();
         data.httpOptions={timeout:15000};
 
+        if(data.id.indexOf('STS.')!=0){
+          delete data.stoken;
+        }
+
+
+        $rootScope.internalSupported = data.eptpl ? data.eptpl.indexOf('-internal')!=-1 : false;
+
         if (data.osspath) {
 
           var info = ossSvs2.parseOSSPath(data.osspath);
           data.bucket = info.bucket;
-
-          console.log(data)
 
           ossSvs2.getClient(data).listObjects({Bucket: info.bucket, Prefix: info.key, Marker:'',MaxKeys:1}, function(err, result){
 
